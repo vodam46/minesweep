@@ -1,21 +1,8 @@
-# Standard base project by vodam46
+# Minesweep
 
-Just a standard base project for all my next c projects
-
-## Installation
-### Linux
-compilation
-```sh
-make
-```
-run
-```sh
-make run
-```
-or
-```sh
-./out
-```
-
-### Windows
-*coming soon, sorry*
+## usage
+./bin/minesweep
+-h -> height
+-w -> width
+-p -> percentage of tiles to make into mines
+-m -> how many mines to place, overrides -p
