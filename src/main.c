@@ -7,7 +7,53 @@ typedef struct _tile {
 	int mine, surrounding, discovered, flagged;
 } tile;
 
-void draw(tile map[], int height, int width) {
+tile* map;
+int height = 20;
+int width = 20;
+float percentage = 25.0f;
+int mines = 0;
+int keep_running = 1;
+
+int* get_neighbors(int position) {
+	// first int is length of array, others are neighbor positions
+	int* ret_val = malloc(9*sizeof(int));
+	ret_val[0] = 1;
+	if (position+width < height*width) {
+		ret_val[ret_val[0]] = position+width;
+		ret_val[0]++;
+	}
+	if (position-width >= 0) {
+		ret_val[ret_val[0]] = position-width;
+		ret_val[0]++;
+	}
+	if (!(position%width+1 == width)) {
+		ret_val[ret_val[0]] = position+1;
+		ret_val[0]++;
+	}
+	if (!(position%width == 0)) {
+		ret_val[ret_val[0]] = position-1;
+		ret_val[0]++;
+	}
+	if (position+width+1 < height*width && (!(position%width+1 == width))) {
+		ret_val[ret_val[0]] = position+width+1;
+		ret_val[0]++;
+	}
+	if (position+width-1 < height*width && (!(position%width == 0))) {
+		ret_val[ret_val[0]] = position+width-1;
+		ret_val[0]++;
+	}
+	if (position-width+1 >= 0 && (!(position%width+1 == width))) {
+		ret_val[ret_val[0]] = position-width+1;
+		ret_val[0]++;
+	}
+	if (position-width-1 >= 0 && (!(position%width == 0))) {
+		ret_val[ret_val[0]] = position-width-1;
+		ret_val[0]++;
+	}
+	return ret_val;
+}
+
+void draw() {
 	clear();
 	for (int y = 0; y < height; y++) {
 		for (int x = 0; x < width; x++) {
@@ -36,9 +82,64 @@ void draw(tile map[], int height, int width) {
 	}
 }
 
-tile* map;
-tile* generate_minefield(int height, int width, int mines, int player_y, int player_x) {
+void discover_tile(int position, int automated) {
+	if (map[position].discovered) {
+		int surrounding_mines = 0;
+		int surrounding_empty = 0;
+		int* neighbors = get_neighbors(position);
+		for (int neighbor_i = 1; neighbor_i < neighbors[0]; neighbor_i++) {
+			if (map[neighbors[neighbor_i]].flagged)
+				surrounding_mines++;
+			else if (!map[neighbors[neighbor_i]].discovered)
+				surrounding_empty++;
+		}
+		if (surrounding_mines == map[position].surrounding) {
+			for (int neighbor_i = 1; neighbor_i < neighbors[0]; neighbor_i++) {
+				if (!map[neighbors[neighbor_i]].flagged &&
+						!map[neighbors[neighbor_i]].discovered) {
+					discover_tile(neighbors[neighbor_i], 1);
+					if (map[neighbors[neighbor_i]].mine) {
+						keep_running = 0;
+						draw();
+						mvprintw(0, 0, "You lost!");
+						getch();
+						return;
+					}
+				}
+			}
+		} else if (
+			surrounding_empty + surrounding_mines == map[position].surrounding
+			&& !automated
+		) {
+			for (int neighbor_i = 1; neighbor_i < neighbors[0]; neighbor_i++) {
+				if (!map[neighbors[neighbor_i]].flagged &&
+						!map[neighbors[neighbor_i]].discovered) {
+					map[neighbors[neighbor_i]].flagged = 1;
+				}
+			}
 
+		}
+		return;
+	}
+	if (!(map[position].flagged)) {
+		map[position].discovered = 1;
+		if (map[position].surrounding == 0 && !map[position].mine) {
+			int* neighbors = get_neighbors(position);
+			for (int neighbor_i = 1; neighbor_i < neighbors[0]; neighbor_i++) {
+				discover_tile(neighbors[neighbor_i], 1);
+			}
+		}
+	}
+	if (map[position].mine) {
+		keep_running = 0;
+		draw();
+		mvprintw(0, 0, "You lost!");
+		getch();
+		return;
+	}
+}
+
+void generate_minefield(int player_y, int player_x) {
 	map = calloc(height*width, sizeof(tile));
 	for (int i = 0; i < height*width; i++) {
 		map[i] = (tile){0, 0, 0, 0};
@@ -51,9 +152,10 @@ tile* generate_minefield(int height, int width, int mines, int player_y, int pla
 
 	// generate the minefield
 	int true_pos = 0;
+	int num_neighbors = get_neighbors(player_x*width + player_x)[0];
 	for (int i = 0; i < mines; i++) {
 		true_pos = 0;
-		int position = rand() % ((height) * (width) - i - 9);
+		int position = rand() % ((height) * (width) - i - num_neighbors);
 		for (int j = 0; j < position;true_pos++) {
 			if (!map[true_pos].mine || map[true_pos].discovered)
 				j++;
@@ -64,40 +166,19 @@ tile* generate_minefield(int height, int width, int mines, int player_y, int pla
 		}
 
 		map[true_pos].mine = 1;
-		if (true_pos+width < height*width) {
-			map[true_pos+width].surrounding++;
-		}
-		if (true_pos-width >= 0) {
-			map[true_pos-width].surrounding++;
-		}
-		if (!(true_pos%width+1 == width)) {
-			map[true_pos+1].surrounding++;
-		}
-		if (!(true_pos%width == 0)) {
-			map[true_pos-1].surrounding++;
-		}
-		if (true_pos+width+1 < height*width && (!(true_pos%width+1 == width))) {
-			map[true_pos+width+1].surrounding++;
-		}
-		if (true_pos+width-1 < height*width && (!(true_pos%width == 0))) {
-			map[true_pos+width-1].surrounding++;
-		}
-		if (true_pos-width+1 >= 0 && (!(true_pos%width+1 == width))) {
-			map[true_pos-width+1].surrounding++;
-		}
-		if (true_pos-width-1 >= 0 && (!(true_pos%width == 0))) {
-			map[true_pos-width-1].surrounding++;
+		int* neighbors = get_neighbors(true_pos);
+		for (int neighbor_i = 1; neighbor_i < neighbors[0]; neighbor_i++) {
+			map[neighbors[neighbor_i]].surrounding++;
 		}
 	}
-	return map;
+	for (int x = -1; x <= 1; x++)
+		for (int y = -1; y <= 1; y++)
+			if (player_y+y >= 0 && player_y+y < height && player_x+x >= 0 && player_x+x < width) map[(player_y+y)*width + (player_x+x)].discovered = 0;
+	discover_tile(player_y*width+player_x, 1);
 }
 
 int main(int argc, char** argv) {
 	srand(time(NULL));
-	int height = 20;
-	int width = 20;
-	float percentage = 30.0f;
-	int mines = 0;
 	int opt;
 	while ((opt = getopt(argc, argv, "hwpm")) != -1) {
 		switch(opt) {
@@ -137,8 +218,7 @@ int main(int argc, char** argv) {
 	int c = 0;
 	int player_y = (int)height/2;
 	int player_x = (int)width/2;
-	int keep_running = 1;
-	draw(map, height, width);
+	draw();
 	mvprintw(0, 0, "%d", mines-mines_flagged);
 	move(player_y+1, player_x);
 	refresh();
@@ -162,19 +242,10 @@ int main(int argc, char** argv) {
 				break;
 			case ' ':
 				if (!map_generated) {
-					map = generate_minefield(height, width, mines, player_y, player_x);
+					generate_minefield(player_y, player_x);
 					map_generated = 1;
 				}
-				if (!(map[player_y*width + player_x].flagged)) {
-					map[player_y*width + player_x].discovered = 1;
-				}
-				if (map[player_y*width + player_x].mine) {
-					keep_running = 0;
-					draw(map, height, width);
-					mvprintw(0, 0, "You lost!");
-					getch();
-					break;
-				}
+				discover_tile(player_y*width+player_x, 0);
 				break;
 			case 'f':
 				if (!map[player_y*width + player_x].discovered) {
@@ -201,11 +272,11 @@ int main(int argc, char** argv) {
 		}
 		if (minefield_clear) {
 			keep_running = 0;
-			draw(map, height, width);
+			draw();
 			mvprintw(0, 0, "You win!");
 			getch();
 		}
-		draw(map, height, width);
+		draw();
 		mvprintw(0, 0, "%d", mines-mines_flagged);
 		move(player_y+1, player_x);
 		refresh();
